@@ -1,0 +1,42 @@
+{
+  "name": "keyvault",
+  "version": "1.0.0",
+  "description": "KeyVault - Secure API Key Manager",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "build:portable": "electron-builder --win portable"
+  },
+  "keywords": [
+    "api",
+    "key",
+    "vault"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.keyvault.app",
+    "productName": "KeyVault",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "styles.css"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "icon.png"
+    }
+  },
+  "dependencies": {
+    "canvas": "^3.2.3"
+  }
+}

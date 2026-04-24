@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Key Vault</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Title Bar -->
+        <div class="title-bar">
+            <div class="window-controls">
+                <button class="control-btn btn-close" id="btn-close" title="关闭"></button>
+                <button class="control-btn btn-minimize" id="btn-minimize" title="最小化"></button>
+            </div>
+            <span class="title-text">Key Vault</span>
+            <button class="theme-toggle" id="btn-theme" title="切换主题">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/>
+                    <line x1="12" y1="1" x2="12" y2="3"/>
+                    <line x1="12" y1="21" x2="12" y2="23"/>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                    <line x1="1" y1="12" x2="3" y2="12"/>
+                    <line x1="21" y1="12" x2="23" y2="12"/>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Content -->
+        <div class="content" id="keys-list">
+            <!-- Rendered by JS -->
+        </div>
+
+        <!-- Add Button -->
+        <div style="padding: 0 12px 12px;">
+            <button class="add-btn" id="btn-add">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                添加密钥
+            </button>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <span class="footer-text" id="stats">0 个密钥</span>
+        </footer>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal">
+            <h3>添加新密钥</h3>
+            <input type="text" id="input-name" placeholder="服务名称（如：OpenAI）">
+            <input type="text" id="input-key" placeholder="API 密钥">
+            <input type="text" id="input-avatar" placeholder="图标路径或选择下方Emoji">
+            <div class="emoji-presets">
+                <button class="emoji-btn" onclick="setEmoji('🤖')">🤖</button>
+                <button class="emoji-btn" onclick="setEmoji('🧠')">🧠</button>
+                <button class="emoji-btn" onclick="setEmoji('🔥')">🔥</button>
+                <button class="emoji-btn" onclick="setEmoji('⚡')">⚡</button>
+                <button class="emoji-btn" onclick="setEmoji('🔑')">🔑</button>
+                <button class="emoji-btn" onclick="setEmoji('💎')">💎</button>
+                <button class="emoji-btn" onclick="setEmoji('🚀')">🚀</button>
+                <button class="emoji-btn" onclick="setEmoji('🌐')">🌐</button>
+            </div>
+            <div class="color-presets">
+                <button class="color-btn" style="background:#007AFF" onclick="setColor('#007AFF')"></button>
+                <button class="color-btn" style="background:#30D158" onclick="setColor('#30D158')"></button>
+                <button class="color-btn" style="background:#FFD60A" onclick="setColor('#FFD60A')"></button>
+                <button class="color-btn" style="background:#FF453A" onclick="setColor('#FF453A')"></button>
+                <button class="color-btn" style="background:#BF5AF2" onclick="setColor('#BF5AF2')"></button>
+                <button class="color-btn" style="background:#64D2FF" onclick="setColor('#64D2FF')"></button>
+                <button class="color-btn" style="background:#FF9F0A" onclick="setColor('#FF9F0A')"></button>
+                <button class="color-btn" style="background:#8E8E93" onclick="setColor('#8E8E93')"></button>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn primary" id="btn-save">添加</button>
+                <button class="modal-btn secondary" id="btn-cancel">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let keys = [];
+        let currentTheme = 'dark';
+        let copiedId = null;
+
+        const DEFAULT_AVATARS = {
+            'openai': 'https://api.dicebear.com/7.x/shapes/svg?seed=openai&backgroundColor=007AFF',
+            'anthropic': 'https://api.dicebear.com/7.x/shapes/svg?seed=anthropic&backgroundColor=D4A574',
+            'google': 'https://api.dicebear.com/7.x/shapes/svg?seed=google&backgroundColor=4285F4',
+            'azure': 'https://api.dicebear.com/7.x/shapes/svg?seed=azure&backgroundColor=0089D6',
+            'aws': 'https://api.dicebear.com/7.x/shapes/svg?seed=aws&backgroundColor=FF9900',
+            'claude': 'https://api.dicebear.com/7.x/shapes/svg?seed=claude&backgroundColor=D4A574',
+            'gemini': 'https://api.dicebear.com/7.x/shapes/svg?seed=gemini&backgroundColor=8E8E93',
+            'deepseek': 'https://api.dicebear.com/7.x/shapes/svg?seed=deepseek&backgroundColor=00C7B2',
+            'grok': 'https://api.dicebear.com/7.x/shapes/svg?seed=grok&backgroundColor=F20C00',
+        };
+
+        // Generate avatar based on name
+        function getAvatar(name) {
+            const key = name.toLowerCase().trim();
+            if (DEFAULT_AVATARS[key]) {
+                return DEFAULT_AVATARS[key];
+            }
+            // Generate unique avatar based on name
+            return `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(key)}&backgroundColor=${getRandomColor()}`;
+        }
+
+        // Get avatar with local file support
+        function getAvatarWithFallback(avatar, name) {
+            if (!avatar) return getAvatar(name);
+            
+            // Check if emoji
+            if (avatar.startsWith('emoji:')) return avatar;
+            
+            // Check if it's a local path
+            if (avatar.match(/\.(png|jpg|jpeg|svg|ico|webp)$/i)) {
+                // Convert to file:// protocol for Electron
+                if (!avatar.startsWith('file://') && !avatar.startsWith('http')) {
+                    // For Windows paths
+                    let path = avatar;
+                    if (path.match(/^[A-Z]:/i)) {
+                        return 'file:///' + path.replace(/\\/g, '/');
+                    }
+                    return 'file://' + path;
+                }
+                return avatar;
+            }
+            
+            // Check if URL
+            if (avatar.startsWith('http')) {
+                return avatar;
+            }
+            
+            return getAvatar(name);
+        }
+        
+        let pendingAvatar = '';
+        let pendingColor = '#007AFF';
+        
+        function setEmoji(emoji) {
+            pendingAvatar = 'emoji:' + emoji;
+            document.getElementById('input-avatar').value = emoji;
+        }
+        
+        function setColor(color) {
+            pendingColor = color;
+        }
+
+        function getRandomColor() {
+            const colors = ['007AFF', '30D158', 'FFD60A', 'FF453A', 'BF5AF2', '64D2FF', 'FF9F0A', '8E8E93'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Load
+        function load() {
+            const savedTheme = localStorage.getItem('kv-theme');
+            if (savedTheme) {
+                currentTheme = savedTheme;
+                document.documentElement.setAttribute('data-theme', currentTheme);
+            }
+
+            try {
+                const saved = localStorage.getItem('kv-keys');
+                keys = saved ? JSON.parse(saved) : [
+                    { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF' },
+                    { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158' },
+                ];
+            } catch(e) {
+                keys = [];
+            }
+            render();
+        }
+
+        // Save
+        function save() {
+            localStorage.setItem('kv-keys', JSON.stringify(keys));
+        }
+
+        // Mask key
+        function mask(str) {
+            if (str.length <= 6) return '•'.repeat(str.length);
+            return str.slice(0, 3) + '••••••' + str.slice(-3);
+        }
+
+        // Toggle card expanded
+        function toggleExpand(id) {
+            keys = keys.map(k => k.id === id ? {...k, expanded: !k.expanded} : k);
+            save();
+            render();
+        }
+
+        // Render
+        function render() {
+            const el = document.getElementById('keys-list');
+            document.getElementById('stats').textContent = keys.length + ' 个密钥';
+            
+            if (keys.length === 0) {
+                el.innerHTML = '<div class="empty-state">暂无密钥<br>点击下方添加</div>';
+                return;
+            }
+
+            el.innerHTML = keys.map(k => `
+                <div class="key-card ${k.expanded ? 'expanded' : ''}" onclick="toggleExpand(${k.id})" style="background:${k.color || '#3a3a3c'}">
+                    <div class="key-header">
+                        <div class="key-info">
+                            ${k.avatar && k.avatar.startsWith('emoji:') ? 
+                                `<span class="key-emoji">${k.avatar.replace('emoji:', '')}</span>` :
+                                `<img class="key-avatar" src="${getAvatarWithFallback(k.avatar, k.name)}" alt="${k.name}" 
+                                    onerror="this.style.display='none'">`
+                            }
+                            <span class="key-name">${k.name}</span>
+                        </div>
+                        <div class="key-actions" onclick="event.stopPropagation()">
+                            ${k.expanded ? `
+                                <button class="action-btn" onclick="toggle(${k.id})" title="${k.visible?'隐藏':'显示'}">
+                                    ${k.visible ? 
+                                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' :
+                                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+                                    }
+                                </button>
+                                ${k.visible ? `
+                                <button class="action-btn" onclick="copy('${k.key.replace(/'/g, "\\'")}', ${k.id})" title="复制">
+                                    ${copiedId === k.id ? 
+                                        '<svg viewBox="0 0 24 24" fill="none" stroke="#30d158" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>' :
+                                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'
+                                    }
+                                </button>
+                                ` : ''}
+                            ` : `
+                                <button class="action-btn delete" onclick="del(${k.id})" title="删除">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="3 6 5 6 21 6"/>
+                                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                                    </svg>
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                    ${k.expanded ? `
+                        <div class="key-value"><code>${k.visible ? k.key : mask(k.key)}</code></div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        // Actions
+        function toggle(id) {
+            keys = keys.map(k => k.id === id ? {...k, visible: !k.visible} : k);
+            save();
+            render();
+        }
+
+        function copy(key, id) {
+            navigator.clipboard.writeText(key);
+            copiedId = id;
+            render();
+            setTimeout(() => { copiedId = null; render(); }, 1500);
+        }
+
+        function del(id) {
+            keys = keys.filter(k => k.id !== id);
+            save();
+            render();
+        }
+
+        // Theme toggle
+        function toggleTheme() {
+            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            localStorage.setItem('kv-theme', currentTheme);
+        }
+
+        // Modal
+        document.getElementById('btn-add').onclick = () => {
+            document.getElementById('modal').classList.add('show');
+            document.getElementById('input-name').focus();
+        };
+
+        document.getElementById('btn-cancel').onclick = () => {
+            document.getElementById('modal').classList.remove('show');
+            clearModal();
+        };
+
+        function clearModal() {
+            document.getElementById('input-name').value = '';
+            document.getElementById('input-key').value = '';
+            document.getElementById('input-avatar').value = '';
+            pendingAvatar = '';
+            pendingColor = '#007AFF';
+        }
+
+        document.getElementById('btn-save').onclick = () => {
+            const name = document.getElementById('input-name').value.trim();
+            const key = document.getElementById('input-key').value.trim();
+            let avatarInput = document.getElementById('input-avatar').value.trim();
+            
+            let avatar = pendingAvatar || getAvatarWithFallback(avatarInput, name);
+            pendingAvatar = '';
+            let color = pendingColor;
+            pendingColor = '#007AFF';
+            
+            if (name && key) {
+                keys.push({ id: Date.now(), name, key, visible: false, avatar, expanded: false, color });
+                save();
+                render();
+                document.getElementById('modal').classList.remove('show');
+                clearModal();
+            }
+        };
+
+        // Window controls
+        const api = window.electronAPI;
+        if (api) {
+            document.getElementById('btn-close').onclick = () => api.close();
+            document.getElementById('btn-minimize').onclick = () => api.minimize();
+        }
+
+        // Theme toggle
+        document.getElementById('btn-theme').onclick = toggleTheme;
+
+        // Init
+        load();
+    </script>
+</body>
+</html>
