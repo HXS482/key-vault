@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const Store = require('electron-store');
 
+const store = new Store();
 let mainWindow;
 
 function createWindow() {
@@ -44,4 +46,20 @@ ipcMain.on('window-minimize', () => {
 
 ipcMain.on('window-close', () => {
     mainWindow.close();
+});
+
+ipcMain.handle('load-keys', () => {
+    return store.get('apiKeys', []);
+});
+
+ipcMain.handle('save-keys', (event, keys) => {
+    store.set('apiKeys', keys);
+});
+
+ipcMain.handle('load-theme', () => {
+    return store.get('theme', 'dark');
+});
+
+ipcMain.handle('save-theme', (event, theme) => {
+    store.set('theme', theme);
 });

@@ -174,21 +174,24 @@
         }
 
         // Load
-        function load() {
-            const savedTheme = localStorage.getItem('kv-theme');
-            if (savedTheme) {
-                currentTheme = savedTheme;
-                document.documentElement.setAttribute('data-theme', currentTheme);
-            }
-
+        async function load() {
             try {
-                const saved = localStorage.getItem('kv-keys');
-                keys = saved ? JSON.parse(saved) : [
+                const savedTheme = await window.electronAPI.loadTheme();
+                if (savedTheme) {
+                    currentTheme = savedTheme;
+                    document.documentElement.setAttribute('data-theme', currentTheme);
+                }
+
+                const saved = await window.electronAPI.loadKeys();
+                keys = saved && saved.length > 0 ? saved : [
                     { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF' },
                     { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158' },
                 ];
             } catch(e) {
-                keys = [];
+                keys = [
+                    { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF' },
+                    { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158' },
+                ];
             }
             render();
 
@@ -209,7 +212,7 @@
 
         // Save
         function save() {
-            localStorage.setItem('kv-keys', JSON.stringify(keys));
+            window.electronAPI.saveKeys(keys);
         }
 
         // Mask key
@@ -327,7 +330,7 @@
         function toggleTheme() {
             currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', currentTheme);
-            localStorage.setItem('kv-theme', currentTheme);
+            window.electronAPI.saveTheme(currentTheme);
         }
 
         // Modal

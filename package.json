@@ -37,6 +37,7 @@
     }
   },
   "dependencies": {
-    "canvas": "^3.2.3"
+    "canvas": "^3.2.3",
+    "electron-store": "^11.0.2"
   }
 }
