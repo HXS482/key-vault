@@ -596,3 +596,104 @@ body {
 .hidden {
     display: none !important;
 }
+
+/* Password Overlay */
+.password-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+}
+
+.password-modal {
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    padding: 24px;
+    width: 300px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    text-align: center;
+}
+
+.password-icon {
+    margin-bottom: 16px;
+}
+
+.password-icon svg {
+    width: 48px;
+    height: 48px;
+    color: var(--accent);
+    margin: 0 auto;
+}
+
+.password-modal h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.password-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.password-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+    margin-bottom: 4px;
+}
+
+.password-input:focus {
+    border-color: var(--accent);
+}
+
+.password-error {
+    font-size: 11px;
+    color: var(--red);
+    min-height: 16px;
+    margin-bottom: 8px;
+}
+
+.password-match {
+    font-size: 11px;
+    color: var(--green);
+    min-height: 16px;
+    margin-bottom: 8px;
+}
+
+.password-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.password-actions .modal-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.password-setup {
+    margin-top: 8px;
+}
