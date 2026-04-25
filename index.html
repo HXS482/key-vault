@@ -873,7 +873,8 @@ document.getElementById('shortcutCancel')?.addEventListener('click', () => {
 document.querySelectorAll('.settings-menu button')?.forEach(btn => {
     btn.addEventListener('click', (e) => {
         const action = e.target.dataset.action;
-        document.getElementById('settingsMenu')?.classList.add('hidden');
+        const menu = document.getElementById('settings-menu');
+        menu?.classList.remove('show');
         switch(action) {
             case 'manage-groups':
                 showGroupModal();
@@ -887,9 +888,174 @@ document.querySelectorAll('.settings-menu button')?.forEach(btn => {
             case 'shortcut':
                 showShortcutModal();
                 break;
+            case 'cloud-sync':
+                showCloudSyncModal();
+                break;
         }
     });
 });
+
+// Cloud Sync
+let syncConfig = null;
+let syncProvider = 'github';
+
+function showCloudSyncModal() {
+    const modal = document.getElementById('cloudSyncModal');
+    if (modal) {
+        modal.classList.add('show');
+        loadSyncConfig();
+    }
+}
+
+async function loadSyncConfig() {
+    syncConfig = await window.electronAPI.loadSyncConfig();
+    if (syncConfig) {
+        syncProvider = syncConfig.provider || 'github';
+        document.getElementById('syncProvider').value = syncProvider;
+        document.getElementById('githubToken').value = '';
+        document.getElementById('webdavUrl').value = syncConfig.webdavUrl || '';
+        document.getElementById('syncStatus').textContent = syncConfig.hasGistId ? '已配置 GitHub Gist' : '未配置';
+    }
+}
+
+document.getElementById('syncProvider')?.addEventListener('change', (e) => {
+    syncProvider = e.target.value;
+    const githubSection = document.getElementById('githubSection');
+    const webdavSection = document.getElementById('webdavSection');
+    if (syncProvider === 'github') {
+        githubSection.classList.remove('hidden');
+        webdavSection.classList.add('hidden');
+    } else {
+        githubSection.classList.add('hidden');
+        webdavSection.classList.remove('hidden');
+    }
+});
+
+document.getElementById('syncUpload')?.addEventListener('click', async () => {
+    const status = document.getElementById('syncStatus');
+    if (!validateSyncConfig()) return;
+
+    status.textContent = '正在上传...';
+    const data = { keys, groups };
+    let result;
+
+    if (syncProvider === 'github') {
+        const token = document.getElementById('githubToken').value;
+        const gistId = '';
+        result = await window.electronAPI.syncToGitHub(data, masterPassword, token, gistId);
+    } else {
+        const url = document.getElementById('webdavUrl').value;
+        const user = document.getElementById('webdavUser').value;
+        const pass = document.getElementById('webdavPass').value;
+        result = await window.electronAPI.syncToWebDAV(data, masterPassword, url, user, pass);
+    }
+
+    if (result && result.success) {
+        status.textContent = '上传成功!';
+        if (result.gistId) {
+            syncConfig = { ...syncConfig, gistId: result.gistId, provider: syncProvider };
+            window.electronAPI.saveSyncConfig(syncConfig);
+        }
+        showToast('同步上传成功');
+    } else {
+        status.textContent = `上传失败: ${result?.error || '未知错误'}`;
+    }
+});
+
+document.getElementById('syncDownload')?.addEventListener('click', async () => {
+    const status = document.getElementById('syncStatus');
+    if (!validateSyncConfig()) return;
+
+    status.textContent = '正在下载...';
+    let result;
+
+    if (syncProvider === 'github') {
+        const token = document.getElementById('githubToken').value;
+        const gistId = '';
+        result = await window.electronAPI.syncFromGitHub(masterPassword, token, gistId);
+    } else {
+        const url = document.getElementById('webdavUrl').value;
+        const user = document.getElementById('webdavUser').value;
+        const pass = document.getElementById('webdavPass').value;
+        result = await window.electronAPI.syncFromWebDAV(masterPassword, url, user, pass);
+    }
+
+    if (result && result.success) {
+        const remoteData = result.data;
+        handleImportData(remoteData);
+        status.textContent = '下载成功!';
+        showToast('同步下载成功');
+    } else {
+        status.textContent = `下载失败: ${result?.error || '未知错误'}`;
+    }
+});
+
+function validateSyncConfig() {
+    if (syncProvider === 'github') {
+        const token = document.getElementById('githubToken').value;
+        if (!token) {
+            document.getElementById('syncStatus').textContent = '请输入 GitHub Token';
+            return false;
+        }
+    } else {
+        const url = document.getElementById('webdavUrl').value;
+        if (!url) {
+            document.getElementById('syncStatus').textContent = '请输入 WebDAV 地址';
+            return false;
+        }
+    }
+    return true;
+}
+
+document.getElementById('syncCancel')?.addEventListener('click', () => {
+    document.getElementById('cloudSyncModal')?.classList.remove('show');
+});
+<!-- Cloud Sync Modal -->
+<div class="modal-overlay hidden" id="cloudSyncModal">
+    <div class="modal" style="width:300px;">
+        <h3>云同步</h3>
+
+        <div class="form-group">
+            <label>同步方式</label>
+            <select id="syncProvider" class="group-input">
+                <option value="github">GitHub Gist</option>
+                <option value="webdav">WebDAV</option>
+            </select>
+        </div>
+
+        <div id="githubSection">
+            <div class="form-group">
+                <label>GitHub Token</label>
+                <input type="password" id="githubToken" class="password-input" placeholder="ghp_xxxxxxxxxxxx">
+                <div class="password-hint">需要 repo 权限的 Personal Access Token</div>
+            </div>
+        </div>
+
+        <div id="webdavSection" class="hidden">
+            <div class="form-group">
+                <label>WebDAV 地址</label>
+                <input type="text" id="webdavUrl" class="group-input" placeholder="https://example.com/dav">
+            </div>
+            <div class="form-group">
+                <label>用户名</label>
+                <input type="text" id="webdavUser" class="group-input" placeholder="用户名">
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" id="webdavPass" class="password-input" placeholder="密码">
+            </div>
+        </div>
+
+        <div id="syncStatus" class="password-hint">未配置</div>
+
+        <div class="modal-actions">
+            <button class="modal-btn secondary" id="syncCancel">取消</button>
+            <button class="modal-btn primary" id="syncDownload">下载</button>
+            <button class="modal-btn primary" id="syncUpload">上传</button>
+        </div>
+    </div>
+</div>
+
 </script>
 </body>
 </html>

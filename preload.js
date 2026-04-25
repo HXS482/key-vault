@@ -15,5 +15,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     decryptImport: (content, password) => ipcRenderer.invoke('decrypt-import', content, password),
     registerShortcut: (shortcut) => ipcRenderer.invoke('register-shortcut', shortcut),
     saveShortcut: (shortcut) => ipcRenderer.invoke('save-shortcut', shortcut),
-    loadShortcut: () => ipcRenderer.invoke('load-shortcut')
+    loadShortcut: () => ipcRenderer.invoke('load-shortcut'),
+    saveSyncConfig: (config) => ipcRenderer.invoke('save-sync-config', config),
+    loadSyncConfig: () => ipcRenderer.invoke('load-sync-config'),
+    syncToGitHub: (data, password, token, gistId) => ipcRenderer.invoke('sync-to-github', data, password, token, gistId),
+    syncFromGitHub: (password, token, gistId) => ipcRenderer.invoke('sync-from-github', password, token, gistId),
+    syncToWebDAV: (data, password, url, username, pass) => ipcRenderer.invoke('sync-to-webdav', data, password, url, username, pass),
+    syncFromWebDAV: (password, url, username, pass) => ipcRenderer.invoke('sync-from-webdav', password, url, username, pass)
 });

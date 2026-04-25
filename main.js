@@ -262,3 +262,199 @@ ipcMain.handle('save-shortcut', (event, shortcut) => {
 ipcMain.handle('load-shortcut', () => {
     return store.get('shortcut', 'CommandOrControl+Shift+K');
 });
+
+// Save sync config
+ipcMain.handle('save-sync-config', (event, config) => {
+    try {
+        store.set('syncConfig', config);
+        return true;
+    } catch (e) {
+        console.error('Save sync config failed:', e);
+        return false;
+    }
+});
+
+// Load sync config (without sensitive data)
+ipcMain.handle('load-sync-config', () => {
+    const config = store.get('syncConfig', null);
+    if (!config) return null;
+    // Return config without token/password
+    return {
+        provider: config.provider || 'github',
+        hasGistId: !!config.gistId,
+        webdavUrl: config.webdavUrl || ''
+    };
+});
+
+// Sync to GitHub Gist
+ipcMain.handle('sync-to-github', async (event, data, password, token, gistId) => {
+    try {
+        const payload = JSON.stringify({
+            version: 2,
+            keys: data.keys,
+            groups: data.groups,
+            lastModified: new Date().toISOString()
+        });
+        const encrypted = encrypt(payload, password);
+        const gistData = {
+            public: false,
+            files: {
+                'keyvault.enc': {
+                    content: encrypted
+                }
+            },
+            description: 'KeyVault Encrypted Backup'
+        };
+
+        let url = 'https://api.github.com/gists';
+        let method = 'POST';
+        if (gistId) {
+            url = `https://api.github.com/gists/${gistId}`;
+            method = 'PATCH';
+        }
+
+        const response = await fetch(url, {
+            method,
+            headers: {
+                'Authorization': `token ${token}`,
+                'Content-Type': 'application/json',
+                'User-Agent': 'KeyVault'
+            },
+            body: JSON.stringify(gistData)
+        });
+
+        if (!response.ok) {
+            console.error('GitHub API error:', response.status, await response.text());
+            return { success: false, error: `GitHub API error: ${response.status}` };
+        }
+
+        const result = await response.json();
+        return {
+            success: true,
+            gistId: result.id,
+            url: result.html_url
+        };
+    } catch (e) {
+        console.error('Sync to GitHub failed:', e);
+        return { success: false, error: e.message };
+    }
+});
+
+// Sync from GitHub Gist
+ipcMain.handle('sync-from-github', async (event, password, token, gistId) => {
+    try {
+        if (!gistId) return { success: false, error: 'No Gist ID configured' };
+
+        const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+            headers: {
+                'Authorization': `token ${token}`,
+                'User-Agent': 'KeyVault'
+            }
+        });
+
+        if (!response.ok) {
+            return { success: false, error: `GitHub API error: ${response.status}` };
+        }
+
+        const gist = await response.json();
+        const encrypted = gist.files['keyvault.enc']?.content;
+        if (!encrypted) return { success: false, error: 'Invalid Gist format' };
+
+        const decrypted = decrypt(encrypted, password);
+        if (!decrypted) return { success: false, error: 'Decryption failed. Wrong password?' };
+
+        const data = JSON.parse(decrypted);
+        if (Array.isArray(data)) {
+            return {
+                success: true,
+                data: {
+                    keys: data.map(k => ({ ...k, group: k.group || '默认' })),
+                    groups: [{ id: 1, name: '默认', collapsed: false }]
+                }
+            };
+        }
+        return {
+            success: true,
+            data: {
+                keys: data.keys || [],
+                groups: data.groups || [{ id: 1, name: '默认', collapsed: false }]
+            }
+        };
+    } catch (e) {
+        console.error('Sync from GitHub failed:', e);
+        return { success: false, error: e.message };
+    }
+});
+
+// Sync to WebDAV
+ipcMain.handle('sync-to-webdav', async (event, data, password, url, username, pass) => {
+    try {
+        const payload = JSON.stringify({
+            version: 2,
+            keys: data.keys,
+            groups: data.groups,
+            lastModified: new Date().toISOString()
+        });
+        const encrypted = encrypt(payload, password);
+        const fileUrl = url.endsWith('/') ? `${url}keyvault.enc` : `${url}/keyvault.enc`;
+
+        const response = await fetch(fileUrl, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Basic ${Buffer.from(`${username}:${pass}`).toString('base64')}`,
+                'Content-Type': 'application/octet-stream'
+            },
+            body: encrypted
+        });
+
+        if (!response.ok && response.status !== 201 && response.status !== 204) {
+            return { success: false, error: `WebDAV error: ${response.status}` };
+        }
+        return { success: true };
+    } catch (e) {
+        console.error('Sync to WebDAV failed:', e);
+        return { success: false, error: e.message };
+    }
+});
+
+// Sync from WebDAV
+ipcMain.handle('sync-from-webdav', async (event, password, url, username, pass) => {
+    try {
+        const fileUrl = url.endsWith('/') ? `${url}keyvault.enc` : `${url}/keyvault.enc`;
+
+        const response = await fetch(fileUrl, {
+            headers: {
+                'Authorization': `Basic ${Buffer.from(`${username}:${pass}`).toString('base64')}`
+            }
+        });
+
+        if (!response.ok) {
+            return { success: false, error: `WebDAV error: ${response.status}` };
+        }
+
+        const encrypted = await response.text();
+        const decrypted = decrypt(encrypted, password);
+        if (!decrypted) return { success: false, error: 'Decryption failed. Wrong password?' };
+
+        const data = JSON.parse(decrypted);
+        if (Array.isArray(data)) {
+            return {
+                success: true,
+                data: {
+                    keys: data.map(k => ({ ...k, group: k.group || '默认' })),
+                    groups: [{ id: 1, name: '默认', collapsed: false }]
+                }
+            };
+        }
+        return {
+            success: true,
+            data: {
+                keys: data.keys || [],
+                groups: data.groups || [{ id: 1, name: '默认', collapsed: false }]
+            }
+        };
+    } catch (e) {
+        console.error('Sync from WebDAV failed:', e);
+        return { success: false, error: e.message };
+    }
+});
