@@ -60,18 +60,23 @@
                     <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
                 </svg>
             </button>
+            <button class="settings-btn" id="btn-settings" title="设置">⚙️</button>
+            <div class="settings-menu" id="settings-menu">
+                <button onclick="showGroupsModal()">管理分组</button>
+                <button onclick="alert('导入导出功能开发中')">导入密钥</button>
+                <button onclick="alert('导入导出功能开发中')">导出密钥</button>
+                <button onclick="alert('快捷键设置开发中')">快捷键设置</button>
+            </div>
         </div>
 
         <!-- Content -->
         <div class="content">
             <input type="text" class="search-input" id="search-input" placeholder="搜索密钥...">
-            <div id="keys-list">
-                <!-- Rendered by JS -->
-            </div>
+            <div id="keys-list"></div>
         </div>
 
         <!-- Add Button -->
-        <div style="padding: 0 12px 12px;">
+        <div style="padding:0 12px 12px;">
             <button class="add-btn" id="btn-add">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"/>
@@ -88,13 +93,17 @@
         </footer>
     </div>
 
-    <!-- Modal -->
+    <!-- Add Key Modal -->
     <div class="modal-overlay" id="modal">
         <div class="modal">
             <h3>添加新密钥</h3>
             <input type="text" id="input-name" placeholder="服务名称（如：OpenAI）">
             <input type="text" id="input-key" placeholder="API 密钥">
             <input type="text" id="input-avatar" placeholder="图标路径或选择下方Emoji">
+            <div class="form-group">
+                <label>分组</label>
+                <select id="keyGroup"></select>
+            </div>
             <div class="emoji-presets">
                 <button class="emoji-btn" onclick="setEmoji('🤖')">🤖</button>
                 <button class="emoji-btn" onclick="setEmoji('🧠')">🧠</button>
@@ -122,9 +131,31 @@
         </div>
     </div>
 
+    <!-- Manage Groups Modal -->
+    <div class="modal-overlay" id="groups-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>管理分组</h3>
+                <button class="modal-close" onclick="closeGroupsModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="groups-list"></div>
+                <div class="add-group-form" id="addGroupForm" style="display:none;">
+                    <input type="text" id="newGroupName" placeholder="分组名称" class="group-input">
+                    <div class="group-form-actions">
+                        <button class="modal-btn primary" onclick="saveNewGroup()">保存</button>
+                        <button class="modal-btn secondary" onclick="hideAddGroupForm()">取消</button>
+                    </div>
+                </div>
+                <button class="add-group-btn" id="showAddGroupBtn" onclick="showAddGroupForm()">+ 添加分组</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // State
         let keys = [];
+        let groups = [{ id: 1, name: '默认', collapsed: false }];
         let currentTheme = 'dark';
         let searchTerm = '';
         let masterPassword = '';
@@ -139,13 +170,11 @@
             const inputPwd = document.getElementById('input-password');
 
             if (!hasPwd) {
-                // First time: set master password
                 title.textContent = '设置主密码';
                 hint.textContent = '设置主密码以保护你的密钥';
                 setup.style.display = 'block';
                 document.getElementById('btn-password-ok').textContent = '设置';
             } else {
-                // Existing user: verify password
                 title.textContent = '输入主密码';
                 hint.textContent = '输入主密码以解锁 Key Vault';
                 setup.style.display = 'none';
@@ -154,7 +183,6 @@
             overlay.style.display = 'flex';
             inputPwd.focus();
 
-            // Handle password submit
             document.getElementById('btn-password-ok').onclick = () => handlePasswordSubmit(hasPwd);
             inputPwd.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') handlePasswordSubmit(hasPwd);
@@ -175,7 +203,6 @@
             }
 
             if (isSetup) {
-                // Verify existing password
                 const valid = await window.electronAPI.verifyPassword(password);
                 if (valid) {
                     masterPassword = password;
@@ -187,7 +214,6 @@
                     inputPwd.focus();
                 }
             } else {
-                // First time setup
                 const confirmPassword = confirmPwd.value;
                 if (!confirmPassword) {
                     matchEl.textContent = '请确认密码';
@@ -218,28 +244,17 @@
             'grok': 'https://api.dicebear.com/7.x/shapes/svg?seed=grok&backgroundColor=F20C00',
         };
 
-        // Generate avatar based on name
         function getAvatar(name) {
             const key = name.toLowerCase().trim();
-            if (DEFAULT_AVATARS[key]) {
-                return DEFAULT_AVATARS[key];
-            }
-            // Generate unique avatar based on name
+            if (DEFAULT_AVATARS[key]) return DEFAULT_AVATARS[key];
             return `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(key)}&backgroundColor=${getRandomColor()}`;
         }
 
-        // Get avatar with local file support
         function getAvatarWithFallback(avatar, name) {
             if (!avatar) return getAvatar(name);
-            
-            // Check if emoji
             if (avatar.startsWith('emoji:')) return avatar;
-            
-            // Check if it's a local path
             if (avatar.match(/\.(png|jpg|jpeg|svg|ico|webp)$/i)) {
-                // Convert to file:// protocol for Electron
                 if (!avatar.startsWith('file://') && !avatar.startsWith('http')) {
-                    // For Windows paths
                     let path = avatar;
                     if (path.match(/^[A-Z]:/i)) {
                         return 'file:///' + path.replace(/\\/g, '/');
@@ -248,23 +263,18 @@
                 }
                 return avatar;
             }
-            
-            // Check if URL
-            if (avatar.startsWith('http')) {
-                return avatar;
-            }
-            
+            if (avatar.startsWith('http')) return avatar;
             return getAvatar(name);
         }
-        
+
         let pendingAvatar = '';
         let pendingColor = '#007AFF';
-        
+
         function setEmoji(emoji) {
             pendingAvatar = 'emoji:' + emoji;
             document.getElementById('input-avatar').value = emoji;
         }
-        
+
         function setColor(color) {
             pendingColor = color;
         }
@@ -272,6 +282,12 @@
         function getRandomColor() {
             const colors = ['007AFF', '30D158', 'FFD60A', 'FF453A', 'BF5AF2', '64D2FF', 'FF9F0A', '8E8E93'];
             return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Save data (keys + groups)
+        async function saveData() {
+            if (!masterPassword) return;
+            await window.electronAPI.saveKeys(masterPassword, keys, groups);
         }
 
         // Load
@@ -283,20 +299,30 @@
                     document.documentElement.setAttribute('data-theme', currentTheme);
                 }
 
-                const saved = await window.electronAPI.loadKeys(masterPassword);
-                keys = saved && saved.length > 0 ? saved : [
-                    { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF' },
-                    { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158' },
-                ];
+                const result = await window.electronAPI.loadKeys(masterPassword);
+                if (!result) {
+                    keys = [
+                        { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF', group: '默认' },
+                        { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158', group: '默认' },
+                    ];
+                    groups = [{ id: 1, name: '默认', collapsed: false }];
+                } else {
+                    keys = result.keys && result.keys.length > 0 ? result.keys : [
+                        { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF', group: '默认' },
+                        { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158', group: '默认' },
+                    ];
+                    groups = result.groups && result.groups.length > 0 ? result.groups : [{ id: 1, name: '默认', collapsed: false }];
+                }
             } catch(e) {
                 keys = [
-                    { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF' },
-                    { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158' },
+                    { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF', group: '默认' },
+                    { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158', group: '默认' },
                 ];
+                groups = [{ id: 1, name: '默认', collapsed: false }];
             }
+            populateGroupSelect();
             render();
 
-            // Update footer time
             if (keys.length > 0) {
                 const lastKey = keys.reduce((a, b) => a.id > b.id ? a : b);
                 const lastDate = new Date(lastKey.id);
@@ -313,7 +339,7 @@
 
         // Save
         function save() {
-            window.electronAPI.saveKeys(keys, masterPassword);
+            window.electronAPI.saveKeys(masterPassword, keys, groups);
         }
 
         // Mask key
@@ -324,12 +350,12 @@
 
         // Toggle card expanded
         function toggleExpand(id) {
-            keys = keys.map(k => k.id === id ? {...k, expanded: !k.expanded} : k);
+            keys = keys.map(k => k.id === id ? {...k, expanded: !k.expanded } : k);
             save();
             render();
         }
 
-        // Render
+        // Render keys grouped by group
         function render() {
             const el = document.getElementById('keys-list');
             const filteredKeys = searchTerm ?
@@ -363,53 +389,89 @@
                 return;
             }
 
-            el.innerHTML = filteredKeys.map(k => `
-                <div class="key-card ${k.expanded ? 'expanded' : ''}" onclick="toggleExpand(${k.id})" style="--card-color: ${k.color || '#3a3a3c'}; background: color-mix(in srgb, ${k.color || '#3a3a3c'} 10%, var(--bg-tertiary)); border-left: 3px solid ${k.color || '#3a3a3c'}">
-                    <div class="key-header">
-                        <div class="key-info">
-                            ${k.avatar && k.avatar.startsWith('emoji:') ?
-                                `<span class="key-emoji">${k.avatar.replace('emoji:', '')}</span>` :
-                                `<img class="key-avatar" src="${getAvatarWithFallback(k.avatar, k.name)}" alt="${k.name}"
-                                    onerror="this.style.display='none'">`
-                            }
-                            <div>
-                                <span class="key-name">${k.name}</span>
-                                <div class="key-preview">${mask(k.key)}</div>
-                            </div>
-                        </div>
-                        <div class="key-actions" onclick="event.stopPropagation()">
-                            ${k.expanded ? `
-                                <button class="action-btn" onclick="toggle(${k.id})" title="${k.visible?'隐藏':'显示'}">
-                                    ${k.visible ?
-                                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' :
-                                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
-                                    }
-                                </button>
-                                ${k.visible ? `
-                                <button class="action-btn" onclick="copy('${k.key.replace(/'/g, "\\'")}')" title="复制">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                                </button>
-                                ` : ''}
-                            ` : `
-                                <button class="action-btn delete" onclick="del(${k.id})" title="删除">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <polyline points="3 6 5 6 21 6"/>
-                                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                                    </svg>
-                                </button>
-                            `}
+            // Group keys
+            const groupedKeys = {};
+            filteredKeys.forEach(k => {
+                const groupName = k.group || '默认';
+                if (!groupedKeys[groupName]) groupedKeys[groupName] = [];
+                groupedKeys[groupName].push(k);
+            });
+
+            let html = '';
+
+            groups.forEach(group => {
+                const groupKeys = groupedKeys[group.name];
+                if (!groupKeys || groupKeys.length === 0) return;
+
+                html += `
+                    <div class="group-header" onclick="toggleGroup(${group.id})">
+                        <div class="group-header-left">
+                            <span class="collapse-icon">${group.collapsed ? '▶' : '▼'}</span>
+                            <span class="group-name">${group.name}</span>
+                            <span class="key-count">${groupKeys.length}</span>
                         </div>
                     </div>
-                    ${k.expanded ? `
-                        <div class="key-value"><code>${k.visible ? k.key : mask(k.key)}</code></div>
-                    ` : ''}
-                </div>
-            `).join('');
+                `;
+
+                if (!group.collapsed) {
+                    html += groupKeys.map(k => `
+                        <div class="key-card ${k.expanded ? 'expanded' : ''}" onclick="toggleExpand(${k.id})" style="--card-color: ${k.color || '#3a3a3c'}; background: color-mix(in srgb, ${k.color || '#3a3a3c'} 10%, var(--bg-tertiary)); border-left: 3px solid ${k.color || '#3a3a3c'}">
+                            <div class="key-header">
+                                <div class="key-info">
+                                    ${k.avatar && k.avatar.startsWith('emoji:') ?
+                                        `<span class="key-emoji">${k.avatar.replace('emoji:', '')}</span>` :
+                                        `<img class="key-avatar" src="${getAvatarWithFallback(k.avatar, k.name)}" alt="${k.name}"
+                                            onerror="this.style.display='none'">`
+                                    }
+                                    <div>
+                                        <span class="key-name">${k.name}</span>
+                                        <div class="key-preview">${mask(k.key)}</div>
+                                    </div>
+                                </div>
+                                <div class="key-actions" onclick="event.stopPropagation()">
+                                    ${k.expanded ? `
+                                        <button class="action-btn" onclick="toggle(${k.id})" title="${k.visible?'隐藏':'显示'}">
+                                            ${k.visible ?
+                                                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' :
+                                                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+                                            }
+                                        </button>
+                                        ${k.visible ? `
+                                        <button class="action-btn" onclick="copy('${k.key.replace(/'/g, "\\'")}')" title="复制">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                        </button>
+                                        ` : ''}
+                                    ` : `
+                                        <button class="action-btn delete" onclick="del(${k.id})" title="删除">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <polyline points="3 6 5 6 21 6"/>
+                                                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                                            </svg>
+                                        </button>
+                                    `}
+                                </div>
+                            </div>
+                            ${k.expanded ? `
+                                <div class="key-value"><code>${k.visible ? k.key : mask(k.key)}</code></div>
+                            ` : ''}
+                        </div>
+                    `).join('');
+                }
+            });
+
+            el.innerHTML = html;
+        }
+
+        // Toggle group collapse
+        function toggleGroup(groupId) {
+            groups = groups.map(g => g.id === groupId ? {...g, collapsed: !g.collapsed } : g);
+            saveData();
+            render();
         }
 
         // Actions
         function toggle(id) {
-            keys = keys.map(k => k.id === id ? {...k, visible: !k.visible} : k);
+            keys = keys.map(k => k.id === id ? {...k, visible: !k.visible } : k);
             save();
             render();
         }
@@ -434,8 +496,77 @@
             window.electronAPI.saveTheme(currentTheme);
         }
 
+        // Populate group select in modal
+        function populateGroupSelect() {
+            const select = document.getElementById('keyGroup');
+            select.innerHTML = groups.map(g =>
+                `<option value="${g.name}" ${g.name === '默认' ? 'selected' : ''}>${g.name}</option>`
+            ).join('');
+        }
+
+        // Group management functions
+        function showGroupsModal() {
+            renderGroupsList();
+            document.getElementById('groups-modal').classList.add('show');
+            document.getElementById('modal').classList.remove('show');
+        }
+
+        function closeGroupsModal() {
+            document.getElementById('groups-modal').classList.remove('show');
+        }
+
+        function renderGroupsList() {
+            const list = document.getElementById('groups-list');
+            list.innerHTML = groups.map(g => `
+                <div class="group-item">
+                    <span>${g.name}</span>
+                    <div class="group-item-actions">
+                        <button class="group-action-btn" onclick="deleteGroup(${g.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showAddGroupForm() {
+            document.getElementById('addGroupForm').style.display = 'block';
+            document.getElementById('showAddGroupBtn').style.display = 'none';
+            document.getElementById('newGroupName').focus();
+        }
+
+        function hideAddGroupForm() {
+            document.getElementById('addGroupForm').style.display = 'none';
+            document.getElementById('showAddGroupBtn').style.display = 'block';
+            document.getElementById('newGroupName').value = '';
+        }
+
+        async function saveNewGroup() {
+            const name = document.getElementById('newGroupName').value.trim();
+            if (!name) return alert('请输入分组名称');
+            if (groups.some(g => g.name === name)) return alert('分组名称已存在');
+            const newId = groups.length ? Math.max(...groups.map(g => g.id)) + 1 : 1;
+            groups.push({ id: newId, name, collapsed: false });
+            await saveData();
+            renderGroupsList();
+            populateGroupSelect();
+            hideAddGroupForm();
+            render();
+        }
+
+        async function deleteGroup(groupId) {
+            if (groups.length <= 1) return alert('至少保留一个分组');
+            const group = groups.find(g => g.id === groupId);
+            if (!confirm(`确定删除分组 "${group.name}"？该分组的密钥将移至默认分组`)) return;
+            keys = keys.map(k => k.group === group.name ? {...k, group: '默认' } : k);
+            groups = groups.filter(g => g.id !== groupId);
+            await saveData();
+            renderGroupsList();
+            populateGroupSelect();
+            render();
+        }
+
         // Modal
         document.getElementById('btn-add').onclick = () => {
+            populateGroupSelect();
             document.getElementById('modal').classList.add('show');
             document.getElementById('input-name').focus();
         };
@@ -457,20 +588,30 @@
             const name = document.getElementById('input-name').value.trim();
             const key = document.getElementById('input-key').value.trim();
             let avatarInput = document.getElementById('input-avatar').value.trim();
-            
             let avatar = pendingAvatar || getAvatarWithFallback(avatarInput, name);
             pendingAvatar = '';
             let color = pendingColor;
             pendingColor = '#007AFF';
-            
+            const group = document.getElementById('keyGroup').value;
+
             if (name && key) {
-                keys.push({ id: Date.now(), name, key, visible: false, avatar, expanded: false, color });
-                save();
+                keys.push({ id: Date.now(), name, key, visible: false, avatar, expanded: false, color, group });
+                saveData();
                 render();
                 document.getElementById('modal').classList.remove('show');
                 clearModal();
             }
         };
+
+        // Settings menu
+        document.getElementById('btn-settings').onclick = (e) => {
+            e.stopPropagation();
+            document.getElementById('settings-menu').classList.toggle('show');
+        };
+
+        document.addEventListener('click', () => {
+            document.getElementById('settings-menu').classList.remove('show');
+        });
 
         // Window controls
         const api = window.electronAPI;
@@ -491,5 +632,264 @@
         // Init
         initApp();
     </script>
+
+<!-- Export Modal -->
+<div class="modal-overlay hidden" id="exportModal">
+    <div class="modal">
+        <h3>导出密钥</h3>
+        <div class="form-group">
+            <label>导出格式</label>
+            <select id="exportFormat" class="group-input">
+                <option value="json">明文 JSON</option>
+                <option value="encrypted">加密文件 (.enc)</option>
+            </select>
+        </div>
+        <div class="form-group hidden" id="exportPasswordGroup">
+            <label>加密密码</label>
+            <input type="password" id="exportPassword" class="password-input" placeholder="输入导出加密密码">
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn secondary" id="exportCancel">取消</button>
+            <button class="modal-btn primary" id="exportConfirm">导出</button>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay hidden" id="importModal">
+    <div class="modal">
+        <h3>导入密钥</h3>
+        <div id="importStatus" class="password-hint">请选择要导入的文件</div>
+        <div class="form-group hidden" id="importPasswordGroup">
+            <label>解密密码（加密文件需要）</label>
+            <input type="password" id="importPassword" class="password-input" placeholder="输入解密密码">
+            <div id="importError" class="password-error"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn secondary" id="importCancel">取消</button>
+            <button class="modal-btn primary" id="importConfirm">选择文件</button>
+        </div>
+    </div>
+</div>
+
+<!-- Shortcut Modal -->
+<div class="modal-overlay hidden" id="shortcutModal">
+    <div class="modal">
+        <h3>快捷键设置</h3>
+        <div class="form-group">
+            <label>当前快捷键</label>
+            <input type="text" id="currentShortcut" class="group-input" readonly>
+        </div>
+        <div class="form-group">
+            <label>新快捷键（按下组合键）</label>
+            <input type="text" id="newShortcut" class="group-input" placeholder="例如 Ctrl+Shift+K">
+            <div id="shortcutError" class="password-error"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn secondary" id="shortcutCancel">取消</button>
+            <button class="modal-btn primary" id="shortcutConfirm">保存</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Export/Import/Shortcut logic
+let currentShortcut = 'CommandOrControl+Shift+K';
+let tempImportContent = null;
+
+// Load shortcut on init
+window.electronAPI.loadShortcut().then(shortcut => {
+    currentShortcut = shortcut;
+    const shortcutInput = document.getElementById('currentShortcut');
+    if (shortcutInput) shortcutInput.value = currentShortcut;
+    window.electronAPI.registerShortcut(currentShortcut);
+});
+
+// Export functions
+function showExportModal() {
+    const modal = document.getElementById('exportModal');
+    if (modal) {
+        modal.classList.add('show');
+        document.getElementById('exportFormat').value = 'json';
+        document.getElementById('exportPasswordGroup').classList.add('hidden');
+        document.getElementById('exportPassword').value = '';
+    }
+}
+
+document.getElementById('exportFormat')?.addEventListener('change', (e) => {
+    const passwordGroup = document.getElementById('exportPasswordGroup');
+    if (e.target.value === 'encrypted') {
+        passwordGroup.classList.remove('hidden');
+    } else {
+        passwordGroup.classList.add('hidden');
+    }
+});
+
+document.getElementById('exportConfirm')?.addEventListener('click', async () => {
+    const format = document.getElementById('exportFormat').value;
+    const encrypt = format === 'encrypted';
+    let password = null;
+    if (encrypt) {
+        password = document.getElementById('exportPassword').value;
+        if (!password) {
+            alert('请输入加密密码');
+            return;
+        }
+    }
+    const data = { keys, groups };
+    const success = await window.electronAPI.exportData(data, encrypt, password);
+    if (success) {
+        showToast('导出成功');
+        document.getElementById('exportModal').classList.remove('show');
+    } else {
+        alert('导出失败');
+    }
+});
+
+document.getElementById('exportCancel')?.addEventListener('click', () => {
+    document.getElementById('exportModal')?.classList.remove('show');
+});
+
+// Import functions
+function showImportModal() {
+    const modal = document.getElementById('importModal');
+    if (modal) {
+        modal.classList.add('show');
+        document.getElementById('importStatus').textContent = '请选择要导入的文件';
+        document.getElementById('importPasswordGroup').classList.add('hidden');
+        document.getElementById('importPassword').value = '';
+        document.getElementById('importError').textContent = '';
+    }
+}
+
+document.getElementById('importConfirm')?.addEventListener('click', async () => {
+    const importData = await window.electronAPI.importData();
+    if (!importData) return;
+    const { content, isEncrypted } = importData;
+    if (isEncrypted) {
+        document.getElementById('importPasswordGroup').classList.remove('hidden');
+        document.getElementById('importStatus').textContent = '检测到加密文件，请输入密码解密';
+        tempImportContent = content;
+    } else {
+        try {
+            const parsed = JSON.parse(content);
+            handleImportData(parsed);
+        } catch (e) {
+            document.getElementById('importError').textContent = '文件格式错误';
+        }
+    }
+});
+
+document.getElementById('importPassword')?.addEventListener('keypress', async (e) => {
+    if (e.key === 'Enter') {
+        const password = e.target.value;
+        const content = tempImportContent;
+        if (!content || !password) return;
+        const result = await window.electronAPI.decryptImport(content, password);
+        if (result) {
+            handleImportData(result);
+            tempImportContent = null;
+        } else {
+            document.getElementById('importError').textContent = '解密失败，密码错误';
+        }
+    }
+});
+
+function handleImportData(data) {
+    const newKeys = data.keys || [];
+    const newGroups = data.groups || [];
+    newGroups.forEach(g => {
+        if (!groups.some(existing => existing.name === g.name)) {
+            groups.push({ ...g, id: groups.length + 1, collapsed: false });
+        }
+    });
+    newKeys.forEach(nk => {
+        const existing = keys.find(ek => ek.name === nk.name);
+        if (!existing) {
+            keys.push({ ...nk, group: nk.group || '默认' });
+        } else {
+            if (confirm(`密钥 "${nk.name}" 已存在，是否覆盖？`)) {
+                Object.assign(existing, nk);
+            }
+        }
+    });
+    saveData();
+    render();
+    showToast('导入成功');
+    document.getElementById('importModal')?.classList.remove('show');
+}
+
+document.getElementById('importCancel')?.addEventListener('click', () => {
+    document.getElementById('importModal')?.classList.remove('show');
+});
+
+// Shortcut functions
+function showShortcutModal() {
+    const modal = document.getElementById('shortcutModal');
+    if (modal) {
+        modal.classList.add('show');
+        document.getElementById('currentShortcut').value = currentShortcut;
+        document.getElementById('newShortcut').value = '';
+        document.getElementById('shortcutError').textContent = '';
+    }
+}
+
+document.getElementById('newShortcut')?.addEventListener('keydown', (e) => {
+    e.preventDefault();
+    const keys = [];
+    if (e.ctrlKey || e.metaKey) keys.push('CommandOrControl');
+    if (e.shiftKey) keys.push('Shift');
+    if (e.altKey) keys.push('Alt');
+    if (e.key && !['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+        keys.push(e.key.toUpperCase());
+    }
+    if (keys.length >= 2) {
+        document.getElementById('newShortcut').value = keys.join('+');
+    }
+});
+
+document.getElementById('shortcutConfirm')?.addEventListener('click', async () => {
+    const newShortcut = document.getElementById('newShortcut').value;
+    if (!newShortcut) {
+        document.getElementById('shortcutError').textContent = '请按下快捷键组合';
+        return;
+    }
+    const success = await window.electronAPI.registerShortcut(newShortcut);
+    if (success) {
+        currentShortcut = newShortcut;
+        await window.electronAPI.saveShortcut(newShortcut);
+        showToast('快捷键已更新');
+        document.getElementById('shortcutModal')?.classList.remove('show');
+    } else {
+        document.getElementById('shortcutError').textContent = '快捷键注册失败，请尝试其他组合';
+    }
+});
+
+document.getElementById('shortcutCancel')?.addEventListener('click', () => {
+    document.getElementById('shortcutModal')?.classList.remove('show');
+});
+
+// Update settings menu handlers
+document.querySelectorAll('.settings-menu button')?.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const action = e.target.dataset.action;
+        document.getElementById('settingsMenu')?.classList.add('hidden');
+        switch(action) {
+            case 'manage-groups':
+                showGroupModal();
+                break;
+            case 'import':
+                showImportModal();
+                break;
+            case 'export':
+                showExportModal();
+                break;
+            case 'shortcut':
+                showShortcutModal();
+                break;
+        }
+    });
+});
+</script>
 </body>
 </html>

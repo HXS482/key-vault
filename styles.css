@@ -597,6 +597,212 @@ body {
     display: none !important;
 }
 
+/* Settings Button */
+.settings-btn {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    -webkit-app-region: no-drag;
+    transition: background 0.15s;
+    margin-left: 4px;
+    font-size: 16px;
+}
+
+.settings-btn:hover {
+    background: var(--bg-teriary);
+}
+
+/* Settings Menu */
+.settings-menu {
+    position: absolute;
+    top: 38px;
+    right: 8px;
+    background: var(--bg-secondary);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 8px;
+    padding: 4px;
+    min-width: 140px;
+    z-index: 1000;
+    box-shadow: var(--shadow);
+}
+
+.settings-menu.hidden {
+    display: none;
+}
+
+.settings-menu button {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 13px;
+    transition: background 0.15s;
+}
+
+.settings-menu button:hover {
+    background: var(--bg-hover);
+}
+
+/* Group Header */
+.group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin: 4px 0;
+    background: var(--bg-teriary);
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+}
+
+.group-header:hover {
+    background: var(--bg-hover);
+}
+
+.group-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.collapse-icon {
+    font-size: 10px;
+    color: var(--text-teriary);
+    transition: transform 0.2s;
+}
+
+.group-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.key-count {
+    font-size: 11px;
+    color: var(--text-teriary);
+    background: rgba(255,255,255,0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+/* Group Management Modal */
+.group-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    background: var(--bg-teriary);
+    border-radius: 6px;
+}
+
+.group-item-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.group-action-btn {
+    padding: 4px 8px;
+    border: none;
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: background 0.15s;
+}
+
+.group-action-btn:hover {
+    background: var(--accent);
+    color: white;
+}
+
+.group-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.15s;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+}
+
+.group-input:focus {
+    border-color: var(--accent);
+}
+
+.group-form-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.add-group-btn {
+    width: 100%;
+    padding: 8px;
+    border: 1px dashed var(--border);
+    background: transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text-teriary);
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+}
+
+.add-group-btn:hover {
+    background: var(--bg-teriary);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Form Group */
+.form-group {
+    margin-bottom: 8px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.form-group select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.form-group select:focus {
+    border-color: var(--accent);
+}
+
 /* Password Overlay */
 .password-overlay {
     position: fixed;
