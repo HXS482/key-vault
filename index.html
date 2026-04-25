@@ -8,13 +8,22 @@
 </head>
 <body>
     <div class="app">
+        <!-- Copy Toast -->
+        <div class="copy-toast" id="copy-toast">已复制!</div>
+
         <!-- Title Bar -->
         <div class="title-bar">
             <div class="window-controls">
                 <button class="control-btn btn-close" id="btn-close" title="关闭"></button>
                 <button class="control-btn btn-minimize" id="btn-minimize" title="最小化"></button>
             </div>
-            <span class="title-text">Key Vault</span>
+            <span class="title-text">
+                <svg class="title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="10" rx="2"/>
+                    <path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                Key Vault
+            </span>
             <button class="theme-toggle" id="btn-theme" title="切换主题">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="5"/>
@@ -31,8 +40,11 @@
         </div>
 
         <!-- Content -->
-        <div class="content" id="keys-list">
-            <!-- Rendered by JS -->
+        <div class="content">
+            <input type="text" class="search-input" id="search-input" placeholder="搜索密钥...">
+            <div id="keys-list">
+                <!-- Rendered by JS -->
+            </div>
         </div>
 
         <!-- Add Button -->
@@ -49,6 +61,7 @@
         <!-- Footer -->
         <footer class="footer">
             <span class="footer-text" id="stats">0 个密钥</span>
+            <span class="footer-text" id="footer-time" style="margin-left:8px;font-size:10px;"></span>
         </footer>
     </div>
 
@@ -90,7 +103,7 @@
         // State
         let keys = [];
         let currentTheme = 'dark';
-        let copiedId = null;
+        let searchTerm = '';
 
         const DEFAULT_AVATARS = {
             'openai': 'https://api.dicebear.com/7.x/shapes/svg?seed=openai&backgroundColor=007AFF',
@@ -178,6 +191,20 @@
                 keys = [];
             }
             render();
+
+            // Update footer time
+            if (keys.length > 0) {
+                const lastKey = keys.reduce((a, b) => a.id > b.id ? a : b);
+                const lastDate = new Date(lastKey.id);
+                const now = new Date();
+                const diffDays = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
+                let timeText = '';
+                if (diffDays === 0) timeText = '今天';
+                else if (diffDays === 1) timeText = '昨天';
+                else if (diffDays < 7) timeText = `${diffDays}天前`;
+                else timeText = lastDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+                document.getElementById('footer-time').textContent = `最后添加: ${timeText}`;
+            }
         }
 
         // Save
@@ -201,38 +228,62 @@
         // Render
         function render() {
             const el = document.getElementById('keys-list');
-            document.getElementById('stats').textContent = keys.length + ' 个密钥';
-            
+            const filteredKeys = searchTerm ?
+                keys.filter(k => k.name.toLowerCase().includes(searchTerm.toLowerCase())) : keys;
+
+            document.getElementById('stats').textContent = keys.length + ' 个密钥' + (searchTerm ? ` (显示 ${filteredKeys.length} 个)` : '');
+
             if (keys.length === 0) {
-                el.innerHTML = '<div class="empty-state">暂无密钥<br>点击下方添加</div>';
+                el.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="10" rx="2"/>
+                            <path d="M7 11V7a5 5 0 0110 0v4"/>
+                        </svg>
+                        <div>暂无密钥</div>
+                        <div style="font-size:11px;margin-top:4px;">点击下方按钮添加你的第一个密钥</div>
+                        <div class="empty-action">
+                            <button onclick="document.getElementById('btn-add').click()">添加密钥</button>
+                        </div>
+                    </div>`;
                 return;
             }
 
-            el.innerHTML = keys.map(k => `
-                <div class="key-card ${k.expanded ? 'expanded' : ''}" onclick="toggleExpand(${k.id})" style="background:${k.color || '#3a3a3c'}">
+            if (filteredKeys.length === 0 && searchTerm) {
+                el.innerHTML = `<div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <div>未找到匹配的密钥</div>
+                </div>`;
+                return;
+            }
+
+            el.innerHTML = filteredKeys.map(k => `
+                <div class="key-card ${k.expanded ? 'expanded' : ''}" onclick="toggleExpand(${k.id})" style="--card-color: ${k.color || '#3a3a3c'}; background: color-mix(in srgb, ${k.color || '#3a3a3c'} 10%, var(--bg-tertiary)); border-left: 3px solid ${k.color || '#3a3a3c'}">
                     <div class="key-header">
                         <div class="key-info">
-                            ${k.avatar && k.avatar.startsWith('emoji:') ? 
+                            ${k.avatar && k.avatar.startsWith('emoji:') ?
                                 `<span class="key-emoji">${k.avatar.replace('emoji:', '')}</span>` :
-                                `<img class="key-avatar" src="${getAvatarWithFallback(k.avatar, k.name)}" alt="${k.name}" 
+                                `<img class="key-avatar" src="${getAvatarWithFallback(k.avatar, k.name)}" alt="${k.name}"
                                     onerror="this.style.display='none'">`
                             }
-                            <span class="key-name">${k.name}</span>
+                            <div>
+                                <span class="key-name">${k.name}</span>
+                                <div class="key-preview">${mask(k.key)}</div>
+                            </div>
                         </div>
                         <div class="key-actions" onclick="event.stopPropagation()">
                             ${k.expanded ? `
                                 <button class="action-btn" onclick="toggle(${k.id})" title="${k.visible?'隐藏':'显示'}">
-                                    ${k.visible ? 
+                                    ${k.visible ?
                                         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>' :
                                         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
                                     }
                                 </button>
                                 ${k.visible ? `
-                                <button class="action-btn" onclick="copy('${k.key.replace(/'/g, "\\'")}', ${k.id})" title="复制">
-                                    ${copiedId === k.id ? 
-                                        '<svg viewBox="0 0 24 24" fill="none" stroke="#30d158" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>' :
-                                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>'
-                                    }
+                                <button class="action-btn" onclick="copy('${k.key.replace(/'/g, "\\'")}')" title="复制">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                                 </button>
                                 ` : ''}
                             ` : `
@@ -259,11 +310,11 @@
             render();
         }
 
-        function copy(key, id) {
+        function copy(key) {
             navigator.clipboard.writeText(key);
-            copiedId = id;
-            render();
-            setTimeout(() => { copiedId = null; render(); }, 1500);
+            const toast = document.getElementById('copy-toast');
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); }, 1500);
         }
 
         function del(id) {
@@ -326,6 +377,12 @@
 
         // Theme toggle
         document.getElementById('btn-theme').onclick = toggleTheme;
+
+        // Search
+        document.getElementById('search-input').addEventListener('input', (e) => {
+            searchTerm = e.target.value.trim();
+            render();
+        });
 
         // Init
         load();
