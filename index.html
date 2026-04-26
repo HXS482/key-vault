@@ -61,11 +61,11 @@
                 </svg>
             </button>
             <button class="settings-btn" id="btn-settings" title="设置">⚙️</button>
-            <div class="settings-menu" id="settings-menu">
+            <div class="settings-menu hidden" id="settings-menu">
                 <button onclick="showGroupsModal()">管理分组</button>
-                <button onclick="alert('导入导出功能开发中')">导入密钥</button>
-                <button onclick="alert('导入导出功能开发中')">导出密钥</button>
-                <button onclick="alert('快捷键设置开发中')">快捷键设置</button>
+                <button onclick="showImportModal()">导入密钥</button>
+                <button onclick="showExportModal()">导出密钥</button>
+                <button onclick="showShortcutModal()">快捷键设置</button>
             </div>
         </div>
 
@@ -287,7 +287,7 @@
         // Save data (keys + groups)
         async function saveData() {
             if (!masterPassword) return;
-            await window.electronAPI.saveKeys(masterPassword, keys, groups);
+            await window.electronAPI.saveKeys(keys, masterPassword, groups);
         }
 
         // Load
@@ -301,23 +301,14 @@
 
                 const result = await window.electronAPI.loadKeys(masterPassword);
                 if (!result) {
-                    keys = [
-                        { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF', group: '默认' },
-                        { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158', group: '默认' },
-                    ];
+                    keys = [];
                     groups = [{ id: 1, name: '默认', collapsed: false }];
                 } else {
-                    keys = result.keys && result.keys.length > 0 ? result.keys : [
-                        { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF', group: '默认' },
-                        { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158', group: '默认' },
-                    ];
+                    keys = result.keys || [];
                     groups = result.groups && result.groups.length > 0 ? result.groups : [{ id: 1, name: '默认', collapsed: false }];
                 }
             } catch(e) {
-                keys = [
-                    { id: 1, name: 'OpenAI', key: 'sk-xxxxxxxx', visible: false, avatar: 'emoji:🤖', expanded: false, color: '#007AFF', group: '默认' },
-                    { id: 2, name: 'Anthropic', key: 'sk-ant-xxxxx', visible: false, avatar: 'emoji:🧠', expanded: false, color: '#30D158', group: '默认' },
-                ];
+                keys = [];
                 groups = [{ id: 1, name: '默认', collapsed: false }];
             }
             populateGroupSelect();
@@ -339,7 +330,7 @@
 
         // Save
         function save() {
-            window.electronAPI.saveKeys(masterPassword, keys, groups);
+            window.electronAPI.saveKeys(keys, masterPassword, groups);
         }
 
         // Mask key
@@ -606,11 +597,11 @@
         // Settings menu
         document.getElementById('btn-settings').onclick = (e) => {
             e.stopPropagation();
-            document.getElementById('settings-menu').classList.toggle('show');
+            document.getElementById('settings-menu').classList.toggle('hidden');
         };
 
         document.addEventListener('click', () => {
-            document.getElementById('settings-menu').classList.remove('show');
+            document.getElementById('settings-menu').classList.add('hidden');
         });
 
         // Window controls
@@ -867,32 +858,6 @@ document.getElementById('shortcutConfirm')?.addEventListener('click', async () =
 
 document.getElementById('shortcutCancel')?.addEventListener('click', () => {
     document.getElementById('shortcutModal')?.classList.remove('show');
-});
-
-// Update settings menu handlers
-document.querySelectorAll('.settings-menu button')?.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-        const action = e.target.dataset.action;
-        const menu = document.getElementById('settings-menu');
-        menu?.classList.remove('show');
-        switch(action) {
-            case 'manage-groups':
-                showGroupModal();
-                break;
-            case 'import':
-                showImportModal();
-                break;
-            case 'export':
-                showExportModal();
-                break;
-            case 'shortcut':
-                showShortcutModal();
-                break;
-            case 'cloud-sync':
-                showCloudSyncModal();
-                break;
-        }
-    });
 });
 
 // Cloud Sync

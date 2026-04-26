@@ -616,7 +616,7 @@ body {
 }
 
 .settings-btn:hover {
-    background: var(--bg-teriary);
+    background: var(--bg-tertiary);
 }
 
 /* Settings Menu */
@@ -663,7 +663,7 @@ body {
     align-items: center;
     padding: 8px 12px;
     margin: 4px 0;
-    background: var(--bg-teriary);
+    background: var(--bg-tertiary);
     border-radius: 6px;
     cursor: pointer;
     user-select: none;
@@ -707,7 +707,7 @@ body {
     align-items: center;
     padding: 8px 12px;
     margin-bottom: 4px;
-    background: var(--bg-teriary);
+    background: var(--bg-tertiary);
     border-radius: 6px;
 }
 
@@ -770,7 +770,7 @@ body {
 }
 
 .add-group-btn:hover {
-    background: var(--bg-teriary);
+    background: var(--bg-tertiary);
     border-color: var(--accent);
     color: var(--accent);
 }
